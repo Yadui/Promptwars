@@ -15,7 +15,7 @@ module.exports = {
         {
             displayName: 'frontend',
             testEnvironment: 'jsdom',
-            testMatch: ['<rootDir>/tests/frontend/**/*.test.js'],
+            testMatch: ['<rootDir>/tests/frontend/**/*.test.{js,mjs}'],
             moduleNameMapper: {
                 '^@client/(.*)$': '<rootDir>/client/src/$1',
             },

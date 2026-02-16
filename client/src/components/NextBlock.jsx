@@ -45,7 +45,7 @@ const NextBlock = ({ tetromino }) => {
                                     S: '48, 211, 56',
                                     T: '132, 61, 198',
                                     Z: '227, 78, 78',
-                                }[Object.keys({ I: 0, J: 0, L: 0, O: 0, S: 0, T: 0, Z: 0 })["IJLOSTZ".indexOf(cell)] || '0,0,0']}, 1)`
+                                }[cell] || '0,0,0'}, 1)`
                                 : 'transparent',
                             border: cell !== 0 ? '1px solid rgba(0,0,0,0.1)' : 'none',
                         }} />

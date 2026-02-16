@@ -1,13 +1,13 @@
-const BOARD_WIDTH = 10;
-const BOARD_HEIGHT = 20;
+export const BOARD_WIDTH = 10;
+export const BOARD_HEIGHT = 20;
 
-function createGrid() {
+export function createGrid() {
     return Array.from(Array(BOARD_HEIGHT), () =>
         new Array(BOARD_WIDTH).fill([0, 'clear'])
     );
 }
 
-function calculateMetrics(grid) {
+export function calculateMetrics(grid) {
     let maxStackHeight = 0;
     let unevenness = 0;
     let heights = new Array(BOARD_WIDTH).fill(0);
@@ -30,7 +30,7 @@ function calculateMetrics(grid) {
     return { maxStackHeight, unevenness };
 }
 
-function checkCollision(player, grid, { x: moveX, y: moveY }) {
+export function checkCollision(player, grid, { x: moveX, y: moveY }) {
     for (let y = 0; y < player.tetromino.length; y += 1) {
         for (let x = 0; x < player.tetromino[y].length; x += 1) {
             if (player.tetromino[y][x] !== 0) {
@@ -53,7 +53,7 @@ function checkCollision(player, grid, { x: moveX, y: moveY }) {
     return false;
 }
 
-function rotate(matrix, dir) {
+export function rotate(matrix, dir) {
     const rotated = matrix.map((_, index) =>
         matrix.map((col) => col[index])
     );
@@ -61,12 +61,3 @@ function rotate(matrix, dir) {
     if (dir > 0) return rotated.map((row) => row.reverse());
     return rotated.reverse();
 }
-
-module.exports = {
-    BOARD_WIDTH,
-    BOARD_HEIGHT,
-    createGrid,
-    calculateMetrics,
-    checkCollision,
-    rotate
-};

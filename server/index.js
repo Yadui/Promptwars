@@ -22,13 +22,18 @@ app.use('/api/analyze', limiter);
 const { validateMetrics } = require('./utils/validation');
 const { mapDifficulty } = require('./utils/difficulty');
 
-// Firestore Setup
+// Firestore Setup - Only initialize if credentials/project are set to avoid local metadata lookup warnings
 const { Firestore, FieldValue } = require('@google-cloud/firestore');
 let db;
-try {
-    db = new Firestore();
-} catch (e) {
-    console.error("Firestore initialization failed:", e.message);
+if (process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.K_SERVICE) {
+    try {
+        db = new Firestore();
+        console.log("Firestore initialized successfully");
+    } catch (e) {
+        console.error("Firestore initialization failed:", e.message);
+    }
+} else {
+    console.log("Firestore skipped: Running locally without GCP context. Logs will be file-based only.");
 }
 
 // Env Check
@@ -38,7 +43,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const fs = require('fs');
 const path = require('path');
@@ -104,4 +109,8 @@ Return JSON with:
         console.error("Gemini error:", error);
         res.status(500).json({ error: "Analysis failed" });
     }
+});
+
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
 });

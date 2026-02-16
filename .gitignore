@@ -29,3 +29,8 @@ coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+server/logs/
+
+# Caches and Local Utils
+.jest-cache/
+**/.npm-local/

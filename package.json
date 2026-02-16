@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
-        "test": "jest --coverage"
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
     },
     "devDependencies": {
         "jest": "^29.7.0",

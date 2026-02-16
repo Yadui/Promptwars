@@ -1,11 +1,11 @@
-const {
+import {
     createGrid,
     calculateMetrics,
     checkCollision,
     rotate,
     BOARD_WIDTH,
     BOARD_HEIGHT
-} = require('../../client/src/utils/gameLogic');
+} from '../../client/src/utils/gameLogic';
 
 describe('Frontend Game Logic', () => {
 

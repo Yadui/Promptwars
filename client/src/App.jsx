@@ -18,6 +18,7 @@ const App = () => {
   const { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage, isAnalyzing } = useTetris();
   const gameArea = useRef(null);
   const [analysis, setAnalysis] = useState(null); // Keep this for final game over analysis
+  const [showDebug, setShowDebug] = useState(false);
 
   const handleFocus = () => {
     if (gameArea.current) gameArea.current.focus();
@@ -82,14 +83,51 @@ const App = () => {
         color: 'white'
       }}
     >
-      <DebugPanel
-        metrics={metrics}
-        dropTime={dropTime}
-        liveAnalysis={liveAnalysis}
-        isPlaying={isPlaying}
-        level={level}
-        isAnalyzing={isAnalyzing}
-      />
+      {showDebug && (
+        <DebugPanel
+          metrics={metrics}
+          dropTime={dropTime}
+          liveAnalysis={liveAnalysis}
+          isPlaying={isPlaying}
+          level={level}
+          isAnalyzing={isAnalyzing}
+        />
+      )}
+
+      {/* Debug Toggle Button */}
+      <button
+        onClick={() => setShowDebug(!showDebug)}
+        style={{
+          position: 'absolute',
+          bottom: '20px',
+          left: '20px',
+          zIndex: 1000,
+          background: 'rgba(26, 26, 26, 0.8)',
+          border: '1px solid var(--accent-color)',
+          borderRadius: '50px',
+          padding: '8px 16px',
+          color: 'var(--accent-color)',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.8rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          backdropFilter: 'blur(5px)',
+          transition: 'all 0.3s ease',
+          boxShadow: showDebug ? '0 0 15px var(--accent-color)' : 'none'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(0, 240, 255, 0.2)';
+          e.currentTarget.style.boxShadow = '0 0 15px var(--accent-color)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(26, 26, 26, 0.8)';
+          e.currentTarget.style.boxShadow = showDebug ? '0 0 15px var(--accent-color)' : 'none';
+        }}
+      >
+        <span>⚙</span> {showDebug ? 'HIDE DEBUG' : 'SHOW DEBUG'}
+      </button>
 
       {gameOver && <EndScreen score={score} rows={rowsCleared} level={level} metrics={metrics} analysis={analysis} />}
 
@@ -114,7 +152,7 @@ const App = () => {
           maxWidth: '600px', // Prevent it from getting TOO wide on huge screens, preserving aspect ratio of tetris
           position: 'relative' // For overlay positioning
         }}>
-          <Board grid={grid} />
+          <Board grid={grid} player={player} />
 
           {/* Mechanic Change Notification Overlay */}
           <MechanicNotification message={mechanicMessage} />

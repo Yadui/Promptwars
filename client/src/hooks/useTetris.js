@@ -44,96 +44,40 @@ export const useTetris = () => {
         difficulty_adjustment: "ready"
     });
 
-    const playerRotate = (grid, dir) => {
-        const clonedPlayer = JSON.parse(JSON.stringify(player));
-        clonedPlayer.tetromino = rotate(clonedPlayer.tetromino, dir);
+    // Sync refs for synchronous access in event handlers (prevents stale closures)
+    const playerRef = useRef(player);
+    const gridRef = useRef(grid);
+
+    useEffect(() => {
+        playerRef.current = player;
+    }, [player]);
+
+    useEffect(() => {
+        gridRef.current = grid;
+    }, [grid]);
+
+    const playerRotate = (targetGrid, dir) => {
+        const currentRefPlayer = playerRef.current;
+        const clonedPlayer = {
+            ...currentRefPlayer,
+            tetromino: rotate(currentRefPlayer.tetromino, dir),
+            pos: { ...currentRefPlayer.pos }
+        };
 
         let offset = 1;
-
-        while (checkCollision(clonedPlayer, grid, { x: clonedPlayer.pos.x, y: clonedPlayer.pos.y })) {
+        while (checkCollision(clonedPlayer, targetGrid, { x: clonedPlayer.pos.x, y: clonedPlayer.pos.y })) {
             clonedPlayer.pos.x += offset;
             offset = -(offset + (offset > 0 ? 1 : -1));
 
             if (offset > clonedPlayer.tetromino[0].length) {
-                // We don't need the inner rotate back here if we cloned, 
-                // but let's keep it similar to original logic if preferred.
                 return;
             }
         }
+
+        playerRef.current = clonedPlayer; // Immediate ref update for concurrent moves
         setPlayer(clonedPlayer);
         setMetrics(prev => ({ ...prev, rotationCount: prev.rotationCount + 1 }));
     };
-
-    useEffect(() => {
-        const sweepRows = (newGrid) => {
-            const ack = newGrid.reduce((ack, row) => {
-                if (row.findIndex((cell) => cell[0] === 0) === -1) {
-                    setRowsCleared((prev) => prev + 1);
-                    setMetrics(prev => {
-                        const newLinesCleared = prev.linesCleared + 1;
-                        if (newLinesCleared === 1) {
-                            setLiveAnalysis(current => ({
-                                ...current,
-                                cognitive_profile: "Flow State Detection",
-                                commentary: "First clear achieved. Neuro-plasticity limiters disengaged.",
-                                difficulty_adjustment: "optimizing"
-                            }));
-                        }
-                        return { ...prev, linesCleared: newLinesCleared };
-                    });
-                    ack.unshift(new Array(newGrid[0].length).fill([0, 'clear']));
-                    return ack;
-                }
-                ack.push(row);
-                return ack;
-            }, []);
-            return ack;
-        };
-
-        const updateGrid = (prevGrid) => {
-            // First flush the grid
-            const newGrid = prevGrid.map((row) =>
-                row.map((cell) => (cell[1] === 'clear' ? [0, 'clear'] : cell))
-            );
-
-            // Then draw the tetromino
-            player.tetromino.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) {
-                        newGrid[y + player.pos.y][x + player.pos.x] = [
-                            value,
-                            `${player.collided ? 'merged' : 'clear'}`,
-                        ];
-                    }
-                });
-            });
-
-            // Then check if we collided
-            if (player.collided) {
-                const sweptGrid = sweepRows(newGrid);
-
-                // Track placement metrics
-                const timeTaken = Date.now() - pieceSpawnTime;
-                const isPanic = timeTaken < 300;
-
-                const { maxStackHeight, unevenness } = calculateMetrics(sweptGrid);
-
-                setMetrics(prev => ({
-                    ...prev,
-                    placements: [...prev.placements, { timeTaken, isPanic }],
-                    maxStackHeight,
-                    unevenness
-                }));
-
-                setPlayer(resetPlayer());
-                return sweptGrid;
-            }
-
-            return newGrid;
-        };
-
-        setGrid((prev) => updateGrid(prev));
-    }, [player.collided, player.pos, player.tetromino, player.pos.x, player.pos.y, pieceSpawnTime, resetPlayer]);
 
     const resetPlayer = useCallback(() => {
         const tetromino = nextTetromino.shape;
@@ -144,16 +88,77 @@ export const useTetris = () => {
             collided: false,
         };
 
-        // If it collides on spawn, game over
-        if (checkCollision(newPlayer, grid, { x: 0, y: 0 })) {
+        // If it collides on spawn, game over - Use Ref for Grid to avoid dependency loop
+        if (checkCollision(newPlayer, gridRef.current, { x: newPlayer.pos.x, y: newPlayer.pos.y })) {
             setGameOver(true);
             setDropTime(null);
             setIsPlaying(false);
         }
 
+        playerRef.current = newPlayer;
         setPlayer(newPlayer);
         setPieceSpawnTime(Date.now());
-    }, [nextTetromino, grid]);
+    }, [nextTetromino]); // Removed 'grid' from dependencies
+
+    const sweepRows = (newGrid) => {
+        const ack = newGrid.reduce((ack, row) => {
+            if (row.findIndex((cell) => cell[0] === 0) === -1) {
+                setRowsCleared((prev) => prev + 1);
+                setMetrics(prev => {
+                    const newLinesCleared = prev.linesCleared + 1;
+                    if (newLinesCleared === 1) {
+                        setLiveAnalysis(current => ({
+                            ...current,
+                            cognitive_profile: "Flow State Detection",
+                            commentary: "First clear achieved. Neuro-plasticity limiters disengaged.",
+                            difficulty_adjustment: "optimizing"
+                        }));
+                    }
+                    return { ...prev, linesCleared: newLinesCleared };
+                });
+                ack.unshift(new Array(newGrid[0].length).fill([0, 'clear']));
+                return ack;
+            }
+            ack.push(row);
+            return ack;
+        }, []);
+        return ack;
+    };
+
+    // UseEffect is now ONLY for handling collisions/merging
+    useEffect(() => {
+        if (player.collided) {
+            setGrid(prev => {
+                const newGrid = [...prev.map(row => [...row])];
+                // Draw piece to grid permanently
+                player.tetromino.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value !== 0) {
+                            newGrid[y + player.pos.y][x + player.pos.x] = [value, 'merged'];
+                        }
+                    });
+                });
+
+                const sweptGrid = sweepRows(newGrid);
+
+                // Placement metrics
+                const timeTaken = Date.now() - pieceSpawnTime;
+                const isPanic = timeTaken < 300;
+                const { maxStackHeight, unevenness } = calculateMetrics(sweptGrid);
+
+                setMetrics(prev => ({
+                    ...prev,
+                    placements: [...prev.placements, { timeTaken, isPanic }],
+                    maxStackHeight,
+                    unevenness
+                }));
+
+                // Reset player AFTER grid is updated to avoid spawn race
+                setTimeout(resetPlayer, 0);
+                return sweptGrid;
+            });
+        }
+    }, [player.collided, pieceSpawnTime, resetPlayer]);
 
     const startGame = () => {
         setGrid(createGrid());
@@ -173,46 +178,73 @@ export const useTetris = () => {
             maxStackHeight: 0,
             unevenness: 0,
         });
-        setPlayer({
+        const newPlayer = {
             pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
             tetromino: randomTetromino().shape,
             collided: false,
-        });
+        };
+        playerRef.current = newPlayer;
+        setPlayer(newPlayer);
     };
 
     const drop = useCallback(() => {
-        if (!checkCollision(player, grid, { x: 0, y: 1 })) {
-            setPlayer(prev => ({
-                ...prev,
-                pos: { x: prev.pos.x, y: prev.pos.y + 1 },
+        const currentRefPlayer = playerRef.current;
+        const currentRefGrid = gridRef.current;
+
+        if (!checkCollision(currentRefPlayer, currentRefGrid, { x: currentRefPlayer.pos.x, y: currentRefPlayer.pos.y + 1 })) {
+            const nextPlayer = {
+                ...currentRefPlayer,
+                pos: { x: currentRefPlayer.pos.x, y: currentRefPlayer.pos.y + 1 },
                 collided: false
-            }));
+            };
+            playerRef.current = nextPlayer;
+            setPlayer(nextPlayer);
         } else {
-            setPlayer(prev => ({ ...prev, collided: true }));
+            const collidedPlayer = { ...currentRefPlayer, collided: true };
+            playerRef.current = collidedPlayer;
+            setPlayer(collidedPlayer);
         }
-    }, [player, grid]);
+    }, []);
 
     const move = ({ keyCode }) => {
         if (!gameOver) {
+            const currentRefGrid = gridRef.current;
+
             if (keyCode === 37) { // Left
-                if (!checkCollision(player, grid, { x: -1, y: 0 })) {
-                    setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x - 1, y: prev.pos.y } }));
+                const currentRefPlayer = playerRef.current;
+                if (!checkCollision(currentRefPlayer, currentRefGrid, { x: currentRefPlayer.pos.x - 1, y: currentRefPlayer.pos.y })) {
+                    const nextPlayer = { ...currentRefPlayer, pos: { x: currentRefPlayer.pos.x - 1, y: currentRefPlayer.pos.y } };
+                    playerRef.current = nextPlayer;
+                    setPlayer(nextPlayer);
                 }
-            } else if (keyCode === 39) { // Right
-                if (!checkCollision(player, grid, { x: 1, y: 0 })) {
-                    setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + 1, y: prev.pos.y } }));
+            }
+
+            if (keyCode === 39) { // Right
+                const currentRefPlayer = playerRef.current;
+                if (!checkCollision(currentRefPlayer, currentRefGrid, { x: currentRefPlayer.pos.x + 1, y: currentRefPlayer.pos.y })) {
+                    const nextPlayer = { ...currentRefPlayer, pos: { x: currentRefPlayer.pos.x + 1, y: currentRefPlayer.pos.y } };
+                    playerRef.current = nextPlayer;
+                    setPlayer(nextPlayer);
                 }
-            } else if (keyCode === 40) { // Down
-                setDropTime(null);
-                drop();
-            } else if (keyCode === 38) { // Up
-                playerRotate(grid, 1);
+            }
+
+            if (keyCode === 40) { // Down
+                if (dropTime !== 50) {
+                    setDropTime(50);
+                    drop(); // Move immediately once
+                }
+            }
+
+            if (keyCode === 38) { // Up
+                playerRotate(currentRefGrid, 1);
             }
         }
     };
 
     const keyUp = ({ keyCode }) => {
         if (!gameOver && keyCode === 40) {
+            // Trigger drop immediately to avoid delay when resuming gravity
+            drop();
             setDropTime(baseDropTimeRef.current);
         }
     };
@@ -327,21 +359,24 @@ export const useTetris = () => {
                 // Reset interval-based metrics
                 setMetrics(prev => ({ ...prev, placements: [] }));
             }
-        }, 30000); // Optimized 30s polling
+        }, 15000); // Optimized 15s polling
         return () => clearInterval(interval);
     }, [gameOver, analyze, applyDifficultyAdjustment]); // Stable dependencies
 
-    // Game Loop
+    // Game Loop - Optimized to not reset on player change
+    const dropRef = useRef(drop);
+    useEffect(() => {
+        dropRef.current = drop;
+    }, [drop]);
+
     useEffect(() => {
         if (!gameOver && dropTime) {
             const interval = setInterval(() => {
-                drop();
+                dropRef.current();
             }, dropTime);
-            return () => {
-                clearInterval(interval);
-            };
+            return () => clearInterval(interval);
         }
-    }, [dropTime, gameOver, drop]);
+    }, [dropTime, gameOver]);
 
     return { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage, isAnalyzing };
 };
