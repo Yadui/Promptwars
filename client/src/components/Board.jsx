@@ -20,18 +20,22 @@ const Board = ({ grid, player }) => {
     }
 
     return (
-        <div style={{
-            display: 'grid',
-            gridTemplateRows: `repeat(${visualGrid.length}, 1fr)`,
-            gridTemplateColumns: `repeat(${visualGrid[0].length}, 1fr)`,
-            gridGap: '1px',
-            border: '2px solid #333',
-            width: '100%',
-            height: '100%',
-            background: '#111',
-            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-            aspectRatio: '10/20'
-        }}>
+        <div
+            role="grid"
+            aria-label="Tetris Board"
+            style={{
+                display: 'grid',
+                gridTemplateRows: `repeat(${visualGrid.length}, 1fr)`,
+                gridTemplateColumns: `repeat(${visualGrid[0].length}, 1fr)`,
+                gridGap: '1px',
+                border: '2px solid #333',
+                width: '100%',
+                height: '100%',
+                background: '#111',
+                boxShadow: '0 0 20px rgba(0,0,0,0.5)',
+                aspectRatio: '10/20'
+            }}
+        >
             {visualGrid.map((row, y) =>
                 row.map((cell, x) => <Cell key={`${y}-${x}`} type={cell[0]} />)
             )}
