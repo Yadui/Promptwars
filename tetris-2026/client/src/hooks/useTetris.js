@@ -6,6 +6,7 @@ const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
 
 import { TETROMINOS, randomTetromino } from '../utils/tetrominos';
+import { createGrid, calculateMetrics, checkCollision, rotate } from '../utils/gameLogic';
 
 export const useTetris = () => {
     const [grid, setGrid] = useState(createGrid());
@@ -34,6 +35,8 @@ export const useTetris = () => {
 
     const [pieceSpawnTime, setPieceSpawnTime] = useState(Date.now());
     const [gameId, setGameId] = useState(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const baseDropTimeRef = useRef(800);
 
     const [liveAnalysis, setLiveAnalysis] = useState({
         cognitive_profile: "System Read",
@@ -41,233 +44,28 @@ export const useTetris = () => {
         difficulty_adjustment: "ready"
     });
 
-    function createGrid() {
-        return Array.from(Array(BOARD_HEIGHT), () =>
-            new Array(BOARD_WIDTH).fill([0, 'clear'])
-        );
-    }
-
-    const calculateMetrics = (grid) => {
-        let maxStackHeight = 0;
-        let unevenness = 0;
-        let heights = new Array(BOARD_WIDTH).fill(0);
-
-        // Calculate column heights
-        for (let x = 0; x < BOARD_WIDTH; x++) {
-            for (let y = 0; y < BOARD_HEIGHT; y++) {
-                if (grid[y][x][1] === 'merged') {
-                    heights[x] = BOARD_HEIGHT - y;
-                    break;
-                }
-            }
-        }
-        maxStackHeight = Math.max(...heights);
-
-        // Calculate unevenness
-        for (let x = 0; x < BOARD_WIDTH - 1; x++) {
-            unevenness += Math.abs(heights[x] - heights[x + 1]);
-        }
-
-        return { maxStackHeight, unevenness };
-    };
-
-    const movePlayer = (dir) => {
-        const newX = player.pos.x + dir;
-        const newY = player.pos.y;
-        if (!checkCollision(player, grid, { x: newX, y: newY })) {
-            updatePlayerPos({ x: newX, y: newY, collided: false });
-        }
-    };
-
-    const startGame = () => {
-        setGrid(createGrid());
-        const next = randomTetromino();
-        setNextTetromino(next);
-        setPlayer({
-            pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
-            tetromino: randomTetromino().shape,
-            collided: false,
-        });
-        setGameOver(false);
-        setIsPlaying(true);
-        setScore(0);
-        setRowsCleared(0);
-        setLevel(0);
-        setDropTime(800);
-        setMetrics({
-            linesCleared: 0,
-            startTime: Date.now(),
-            placements: [],
-            rotationCount: 0,
-            maxStackHeight: 0,
-            unevenness: 0,
-        });
-        setPieceSpawnTime(Date.now());
-
-        // Generate a simple unique Game ID
-        const newGameId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        setGameId(newGameId);
-
-        setLiveAnalysis({
-            cognitive_profile: "Syncing...",
-            commentary: "Neural link established. Awaiting input patterns.",
-            difficulty_adjustment: "calibrating"
-        });
-    };
-
-    const resetPlayer = () => {
-        setPieceSpawnTime(Date.now());
-        const newTetromino = nextTetromino || randomTetromino(); // Use next or random if undefined
-        setNextTetromino(randomTetromino()); // Generate new next piece
-
-        return {
-            pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
-            tetromino: newTetromino.shape,
-            collided: false,
-        };
-    };
-
-    const updatePlayerPos = ({ x, y, collided }) => {
-        setPlayer((prev) => ({
-            ...prev,
-            pos: { x, y }, // Use absolute coordinates
-            collided,
-        }));
-    };
-
-    const checkCollision = (player, grid, { x: moveX, y: moveY }) => {
-        // moveX and moveY are now ABSOLUTE coordinates for the player position
-        // We are checking if the player WAS at {moveX, moveY}, would it collide?
-
-        for (let y = 0; y < player.tetromino.length; y += 1) {
-            for (let x = 0; x < player.tetromino[y].length; x += 1) {
-                // 1. Check that we're on an actual Tetromino cell
-                if (player.tetromino[y][x] !== 0) {
-
-                    const nextX = x + moveX;
-                    const nextY = y + moveY;
-
-                    if (
-                        // 2. Check that our move is inside the game areas height (y)
-                        // We strictly check bounds first to avoid undefined access
-                        nextY >= BOARD_HEIGHT ||
-                        // 3. Check that our move is inside the game areas width (x)
-                        nextX < 0 ||
-                        nextX >= BOARD_WIDTH ||
-                        // 4. Check if the cell is already occupied (not clear)
-                        // We must ensure grid[nextY] exists before checking [nextX]
-                        (grid[nextY] && grid[nextY][nextX] && grid[nextY][nextX][1] !== 'clear')
-                    ) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    };
-
-    const drop = () => {
-        // Increase level when player has cleared 10 rows
-        if (rowsCleared > (level + 1) * 10) {
-            setLevel((prev) => prev + 1);
-            setDropTime(1000 / (level + 1) + 200);
-        }
-
-        const newX = player.pos.x;
-        const newY = player.pos.y + 1;
-
-        if (!checkCollision(player, grid, { x: newX, y: newY })) {
-            updatePlayerPos({ x: newX, y: newY, collided: false });
-        } else {
-            // Game Over
-            if (player.pos.y < 1) {
-                setGameOver(true);
-                setIsPlaying(false);
-                setDropTime(null);
-            }
-            updatePlayerPos({ x: player.pos.x, y: player.pos.y, collided: true });
-        }
-    };
-
-    const keyUp = ({ keyCode }) => {
-        if (!gameOver) {
-            // Activate the interval again when user releases down arrow
-            // if (keyCode === 40) {
-            //     setDropTime(1000 / (level + 1) + 200);
-            // }
-        }
-    };
-
-    const dropPlayer = () => {
-        // We don't stop the interval anymore, we just add extra drops
-        // setDropTime(null);
-        drop();
-    };
-
-    const move = ({ keyCode }) => {
-        if (!gameOver) {
-            // First move check
-            if (metrics.placements.length === 0 && metrics.rotationCount === 0 && score === 0 && liveAnalysis.difficulty_adjustment === 'calibrating') {
-                setLiveAnalysis(prev => ({
-                    ...prev,
-                    cognitive_profile: "Analyzing...",
-                    commentary: "First input detected. Profiling reaction time.",
-                    difficulty_adjustment: "active"
-                }));
-            }
-
-            if (keyCode === 37) {
-                movePlayer(-1);
-            } else if (keyCode === 39) {
-                movePlayer(1);
-            } else if (keyCode === 40) {
-                dropPlayer();
-            } else if (keyCode === 38) {
-                playerRotate(grid, 1);
-            }
-        }
-    };
-
     const playerRotate = (grid, dir) => {
-        // deep clone
         const clonedPlayer = JSON.parse(JSON.stringify(player));
         clonedPlayer.tetromino = rotate(clonedPlayer.tetromino, dir);
 
-        // Wall kick logic
-        const pos = clonedPlayer.pos.x;
         let offset = 1;
 
-        // We check collision for the ROTATED piece at current position
         while (checkCollision(clonedPlayer, grid, { x: clonedPlayer.pos.x, y: clonedPlayer.pos.y })) {
             clonedPlayer.pos.x += offset;
             offset = -(offset + (offset > 0 ? 1 : -1));
 
-            // If we've moved too far trying to find a spot, abort rotation
             if (offset > clonedPlayer.tetromino[0].length) {
-                // Rotate back
-                rotate(clonedPlayer.tetromino, -dir);
-                clonedPlayer.pos.x = pos;
+                // We don't need the inner rotate back here if we cloned, 
+                // but let's keep it similar to original logic if preferred.
                 return;
             }
         }
-
         setPlayer(clonedPlayer);
         setMetrics(prev => ({ ...prev, rotationCount: prev.rotationCount + 1 }));
     };
 
-    const rotate = (matrix, dir) => {
-        // Transpose rows to cols
-        const rotated = matrix.map((_, index) =>
-            matrix.map((col) => col[index])
-        );
-        // Reverse each row to get a rotated matrix
-        if (dir > 0) return rotated.map((row) => row.reverse());
-        return rotated.reverse();
-    };
-
     useEffect(() => {
         const sweepRows = (newGrid) => {
-            let sweptRows = 0;
             const ack = newGrid.reduce((ack, row) => {
                 if (row.findIndex((cell) => cell[0] === 0) === -1) {
                     setRowsCleared((prev) => prev + 1);
@@ -283,7 +81,6 @@ export const useTetris = () => {
                         }
                         return { ...prev, linesCleared: newLinesCleared };
                     });
-                    sweptRows += 1;
                     ack.unshift(new Array(newGrid[0].length).fill([0, 'clear']));
                     return ack;
                 }
@@ -336,7 +133,89 @@ export const useTetris = () => {
         };
 
         setGrid((prev) => updateGrid(prev));
-    }, [player.collided, player.pos, player.tetromino, player.pos.x, player.pos.y]);
+    }, [player.collided, player.pos, player.tetromino, player.pos.x, player.pos.y, pieceSpawnTime, resetPlayer]);
+
+    const resetPlayer = useCallback(() => {
+        const tetromino = nextTetromino.shape;
+        setNextTetromino(randomTetromino());
+        const newPlayer = {
+            pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
+            tetromino,
+            collided: false,
+        };
+
+        // If it collides on spawn, game over
+        if (checkCollision(newPlayer, grid, { x: 0, y: 0 })) {
+            setGameOver(true);
+            setDropTime(null);
+            setIsPlaying(false);
+        }
+
+        setPlayer(newPlayer);
+        setPieceSpawnTime(Date.now());
+    }, [nextTetromino, grid]);
+
+    const startGame = () => {
+        setGrid(createGrid());
+        setGameOver(false);
+        setIsPlaying(true);
+        setScore(0);
+        setRowsCleared(0);
+        setLevel(0);
+        setDropTime(800);
+        baseDropTimeRef.current = 800;
+        setGameId(Math.random().toString(36).substr(2, 9));
+        setMetrics({
+            linesCleared: 0,
+            startTime: Date.now(),
+            placements: [],
+            rotationCount: 0,
+            maxStackHeight: 0,
+            unevenness: 0,
+        });
+        setPlayer({
+            pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
+            tetromino: randomTetromino().shape,
+            collided: false,
+        });
+    };
+
+    const drop = useCallback(() => {
+        if (!checkCollision(player, grid, { x: 0, y: 1 })) {
+            setPlayer(prev => ({
+                ...prev,
+                pos: { x: prev.pos.x, y: prev.pos.y + 1 },
+                collided: false
+            }));
+        } else {
+            setPlayer(prev => ({ ...prev, collided: true }));
+        }
+    }, [player, grid]);
+
+    const move = ({ keyCode }) => {
+        if (!gameOver) {
+            if (keyCode === 37) { // Left
+                if (!checkCollision(player, grid, { x: -1, y: 0 })) {
+                    setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x - 1, y: prev.pos.y } }));
+                }
+            } else if (keyCode === 39) { // Right
+                if (!checkCollision(player, grid, { x: 1, y: 0 })) {
+                    setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + 1, y: prev.pos.y } }));
+                }
+            } else if (keyCode === 40) { // Down
+                setDropTime(null);
+                drop();
+            } else if (keyCode === 38) { // Up
+                playerRotate(grid, 1);
+            }
+        }
+    };
+
+    const keyUp = ({ keyCode }) => {
+        if (!gameOver && keyCode === 40) {
+            setDropTime(baseDropTimeRef.current);
+        }
+    };
 
 
 
@@ -351,14 +230,70 @@ export const useTetris = () => {
         gameIdRef.current = gameId;
     }, [gameId]);
 
+    const applyDifficultyAdjustment = useCallback((adjustment) => {
+        if (adjustment === 'increase') {
+            baseDropTimeRef.current = Math.max(100, baseDropTimeRef.current * 0.8);
+            setDropTime(baseDropTimeRef.current);
+            setMechanicMessage("SPEED UP!");
+        } else if (adjustment === 'decrease') {
+            baseDropTimeRef.current = Math.min(1000, baseDropTimeRef.current * 1.2);
+            setDropTime(baseDropTimeRef.current);
+            setMechanicMessage("SLOWING DOWN...");
+        } else if (adjustment === 'spike') {
+            setDropTime(baseDropTimeRef.current * 0.5);
+            setMechanicMessage("ADRENALINE SPIKE!");
+            setTimeout(() => setDropTime(baseDropTimeRef.current), 5000);
+        }
+
+        if (adjustment !== 'maintain') {
+            setTimeout(() => setMechanicMessage(null), 3000);
+        }
+    }, []);
+
+    const analyze = useCallback(async (payload) => {
+        setIsAnalyzing(true);
+        try {
+            const response = await fetch(`${API_URL}/api/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.cognitive_profile || !data.difficulty_adjustment || !data.commentary) {
+                throw new Error("Incomplete AI response");
+            }
+
+            return data;
+        } catch (error) {
+            console.error("Analysis failed:", error);
+            return {
+                cognitive_profile: "Unknown",
+                difficulty_adjustment: "maintain",
+                commentary: "AI unavailable. Continuing standard mode."
+            };
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, []);
+
     // Send metrics to backend
     useEffect(() => {
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
             const currentMetrics = metricsRef.current;
             const currentGameId = gameIdRef.current;
 
-            if (!gameOver && currentMetrics.placements.length > 0) {
-                // Calculate derived metrics
+            // Frontend Validation
+            if (
+                !gameOver &&
+                currentMetrics.placements.length > 0 &&
+                typeof currentMetrics.linesCleared === 'number'
+            ) {
                 const avgPlacementTime = currentMetrics.placements.reduce((acc, p) => acc + p.timeTaken, 0) / currentMetrics.placements.length || 0;
                 const panicCount = currentMetrics.placements.filter(p => p.isPanic).length;
 
@@ -374,39 +309,27 @@ export const useTetris = () => {
                     }
                 };
 
-                console.log("Sending metrics:", payload);
-                fetch(`${API_URL}/api/analyze`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                })
-                    .then(res => res.json())
-                    .then(data => {
-                        console.log("Analysis:", data);
-                        setLiveAnalysis(data); // Update live analysis
+                const data = await analyze(payload);
 
-                        if (data.difficulty_adjustment === 'increase') {
-                            setDropTime(prev => Math.max(100, (prev || 800) * 0.9));
-                            setMechanicMessage("SPEED UP!");
-                        } else if (data.difficulty_adjustment === 'decrease') {
-                            setDropTime(prev => Math.min(1000, (prev || 800) * 1.1));
-                            setMechanicMessage("SLOWING DOWN...");
-                        } else if (data.difficulty_adjustment === 'spike') {
-                            setDropTime(prev => Math.max(50, (prev || 800) * 0.5));
-                            setMechanicMessage("ADRENALINE SPIKE!");
-                            setTimeout(() => setDropTime(prev => (prev || 400) * 2), 5000); // 5s spike
-                        }
+                // Re-render prevention & State isolation
+                setLiveAnalysis(prev => {
+                    if (
+                        prev.commentary === data.commentary &&
+                        prev.difficulty_adjustment === data.difficulty_adjustment
+                    ) {
+                        return prev;
+                    }
+                    return data;
+                });
 
-                        // Clear message after 3 seconds
-                        if (data.difficulty_adjustment !== 'maintain') {
-                            setTimeout(() => setMechanicMessage(null), 3000);
-                        }
-                    })
-                    .catch(err => console.error("Error sending metrics", err));
+                applyDifficultyAdjustment(data.difficulty_adjustment);
+
+                // Reset interval-based metrics
+                setMetrics(prev => ({ ...prev, placements: [] }));
             }
-        }, 5000); // 5s interval for faster feedback
+        }, 30000); // Optimized 30s polling
         return () => clearInterval(interval);
-    }, [gameOver]); // Only depends on gameOver status now
+    }, [gameOver, analyze, applyDifficultyAdjustment]); // Stable dependencies
 
     // Game Loop
     useEffect(() => {
@@ -418,7 +341,7 @@ export const useTetris = () => {
                 clearInterval(interval);
             };
         }
-    }, [dropTime, gameOver, drop]); // eslint-disable-next-line
+    }, [dropTime, gameOver, drop]);
 
-    return { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage };
+    return { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage, isAnalyzing };
 };

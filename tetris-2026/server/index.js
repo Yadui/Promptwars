@@ -6,11 +6,35 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Security Middleware
+const rateLimit = require('express-rate-limit');
+const limiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // Limit each IP to 30 requests per windowMs
+    message: { error: "Too many requests, please slow down." }
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10kb' }));
+app.use('/api/analyze', limiter);
 
+// Utilities
+const { validateMetrics } = require('./utils/validation');
+const { mapDifficulty } = require('./utils/difficulty');
+
+// Firestore Setup
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
+let db;
+try {
+    db = new Firestore();
+} catch (e) {
+    console.error("Firestore initialization failed:", e.message);
+}
+
+// Env Check
 if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY in environment variables");
+    console.error("CRITICAL: Missing GEMINI_API_KEY in environment variables");
+    process.exit(1);
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -23,12 +47,13 @@ app.post('/api/analyze', async (req, res) => {
     try {
         const { metrics, gameId } = req.body;
 
-        if (!metrics || typeof metrics !== 'object') {
-            return res.status(400).json({ error: "Invalid metrics payload" });
+        const validationError = validateMetrics(metrics);
+        if (validationError) {
+            return res.status(400).json({ error: validationError });
         }
 
         const prompt = `
-Analyze this Tetris player's performance over the last 60 seconds.
+Analyze this Tetris player's performance.
 
 Metrics:
 ${JSON.stringify(metrics)}
@@ -40,37 +65,34 @@ Return JSON with:
 `;
 
         const result = await model.generateContent({
-            contents: [
-                {
-                    role: "user",
-                    parts: [{ text: prompt }]
-                }
-            ],
-            generationConfig: {
-                responseMimeType: "application/json"
-            }
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
         });
 
-        const text = result.response.text();
-        const analysis = JSON.parse(text);
+        const analysis = JSON.parse(result.response.text());
 
-        if (!analysis.cognitive_profile ||
-            !analysis.difficulty_adjustment ||
-            !analysis.commentary) {
+        if (!analysis.cognitive_profile || !analysis.difficulty_adjustment || !analysis.commentary) {
             return res.status(500).json({ error: "Incomplete AI response" });
         }
 
-        // Log to file if gameId is present
+        analysis.difficulty_adjustment = mapDifficulty(analysis.difficulty_adjustment);
+
+        // Firestore Logging (Non-blocking)
+        if (db) {
+            db.collection('game_logs').add({
+                gameId: gameId || 'anonymous',
+                timestamp: FieldValue.serverTimestamp(),
+                metrics,
+                analysis
+            }).catch(err => console.error("Firestore error:", err));
+        }
+
+        // File Logging (Legacy)
         if (gameId) {
             const logDir = path.join(__dirname, 'logs');
             const logFile = path.join(logDir, `game_${gameId}.jsonl`);
-
-            const logEntry = JSON.stringify({
-                timestamp: new Date().toISOString(),
-                metrics,
-                analysis
-            }) + '\n';
-
+            const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), metrics, analysis }) + '\n';
+            if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
             fs.appendFile(logFile, logEntry, (err) => {
                 if (err) console.error("Error writing to log file:", err);
             });
@@ -80,10 +102,6 @@ Return JSON with:
 
     } catch (error) {
         console.error("Gemini error:", error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Analysis failed" });
     }
-});
-
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
 });

@@ -4,15 +4,7 @@ const Timer = ({ startTime, gameOver }) => {
     const [elapsed, setElapsed] = useState(0);
 
     useEffect(() => {
-        if (!startTime) {
-            setElapsed(0);
-            return;
-        }
-
-        // Sync immediately on start
-        setElapsed(Date.now() - startTime);
-
-        if (gameOver) return;
+        if (!startTime || gameOver) return;
 
         const interval = setInterval(() => {
             setElapsed(Date.now() - startTime);

@@ -15,12 +15,18 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const App = () => {
   // Destructure liveAnalysis and nextTetromino from the hook
-  const { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage } = useTetris();
+  const { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage, isAnalyzing } = useTetris();
   const gameArea = useRef(null);
   const [analysis, setAnalysis] = useState(null); // Keep this for final game over analysis
 
   const handleFocus = () => {
     if (gameArea.current) gameArea.current.focus();
+  };
+
+  const wrapStartGame = () => {
+    setAnalysis(null);
+    startGame();
+    handleFocus();
   };
 
   useEffect(() => {
@@ -44,11 +50,15 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-        .then(res => res.json())
-        .then(data => setAnalysis(data))
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          if (!data || !data.difficulty_adjustment) return;
+          setAnalysis(data);
+        })
         .catch(err => console.error("Error getting final analysis", err));
-    } else if (!gameOver) {
-      setAnalysis(null);
     }
   }, [gameOver, metrics]);
 
@@ -78,6 +88,7 @@ const App = () => {
         liveAnalysis={liveAnalysis}
         isPlaying={isPlaying}
         level={level}
+        isAnalyzing={isAnalyzing}
       />
 
       {gameOver && <EndScreen score={score} rows={rowsCleared} level={level} metrics={metrics} analysis={analysis} />}
@@ -123,7 +134,7 @@ const App = () => {
               zIndex: 10
             }}>
               <div style={{ width: '200px' }}>
-                <StartButton callback={() => { startGame(); handleFocus(); }} />
+                <StartButton callback={wrapStartGame} />
               </div>
             </div>
           )}
@@ -139,8 +150,8 @@ const App = () => {
           paddingTop: '20px'
         }}>
           <div style={{ marginBottom: '20px' }}>
-            {/* Timer */}
-            <Timer startTime={metrics.startTime} gameOver={gameOver} />
+            {/* Timer with unique key to reset state */}
+            <Timer key={metrics.startTime || 'idle'} startTime={metrics.startTime} gameOver={gameOver} />
 
             {/* Next Block */}
             {isPlaying && nextTetromino && <NextBlock tetromino={nextTetromino.shape} />}
@@ -159,6 +170,7 @@ const App = () => {
             <p>← → to move</p>
             <p>↑ to rotate</p>
             <p>↓ to drop</p>
+            <p style={{ marginTop: '10px', opacity: 0.6 }}>Session: {player.gameId || 'awaiting link...'}</p>
           </div>
         </aside>
       </div>

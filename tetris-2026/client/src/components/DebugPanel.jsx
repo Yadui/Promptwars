@@ -1,6 +1,6 @@
 import React from 'react';
 
-const DebugPanel = ({ metrics, dropTime, liveAnalysis, isPlaying, level }) => {
+const DebugPanel = ({ metrics, dropTime, liveAnalysis, isPlaying, level, isAnalyzing }) => {
     return (
         <div style={{
             position: 'absolute',
@@ -18,8 +18,9 @@ const DebugPanel = ({ metrics, dropTime, liveAnalysis, isPlaying, level }) => {
             maxWidth: '250px',
             boxShadow: '0 0 10px rgba(0, 255, 0, 0.1)'
         }}>
-            <h3 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #333', paddingBottom: '5px', color: '#fff' }}>
+            <h3 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #333', paddingBottom: '5px', color: '#fff', display: 'flex', justifyContent: 'space-between' }}>
                 DEBUG: AI STATE
+                {isAnalyzing && <span style={{ fontSize: '10px', color: '#ffea00', animation: 'pulse 1s infinite' }}>ANALYZING...</span>}
             </h3>
 
             <div style={{ marginBottom: '10px' }}>
