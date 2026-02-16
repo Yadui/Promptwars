@@ -2,8 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const helmet = require('helmet');
+const compression = require('compression');
 
 const app = express();
+app.use(helmet());
+app.use(compression());
+app.disable('x-powered-by');
 const port = process.env.PORT || 3000;
 
 // Security Middleware

@@ -52,10 +52,11 @@ To ensure zero-latency gameplay at 60FPS:
 
 ---
 
-## ☁️ Google Services Integration
-1. **Google Gemini 2.0 Flash**: Powers the core adaptive difficulty engine and personality-driven commentary.
-2. **Google Cloud Run**: Serverless orchestration for scalable backend and frontend delivery.
-3. **Google Cloud Firestore**: (Conditional) Production logging for anonymous performance analytics.
+## ☁️ Google Services Used
+- **Gemini API**: Core engine for cognitive profiling and adaptive difficulty.
+- **Firestore**: Anonymous gameplay analytics and performance logging.
+- **Google Cloud Run**: Serverless orchestration for scalable deployment.
+- **Google Cloud Build**: Integrated CI/CD pipeline for automated delivery.
 
 ---
 
