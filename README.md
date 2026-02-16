@@ -1,93 +1,84 @@
 # Tetris Adaptive Intelligence (AI) Mode
 
+![CI](https://github.com/Yadui/Promptwars/actions/workflows/ci.yml/badge.svg)
+
 **Vertical**: AI-Adaptive Gaming & Neuro-Feedback Systems
 
 ## 🚀 Overview
-Tetris AI is a reimagined version of the classic puzzle game that dynamically adapts its difficulty using Google Gemini AI. By monitoring real-time player performance metrics, the game adjusts its mechanics to keep the user in a "Flow State," preventing boredom from low difficulty or frustration from high difficulty spikes.
-
-### 🔗 Deployment
-- **Frontend (Client)**: [Deployed URL](https://tetris-client-1048980752257.us-central1.run.app)
-- **Backend (Server)**: [Deployed URL](https://tetris-server-1048980752257.us-central1.run.app)
+Tetris AI is a reimagined version of the classic puzzle game that dynamically adapts its difficulty using **Google Gemini 2.0 Flash**. By analyzing player "Flow State" in real-time, the game ensures an optimally challenging experience—never too easy to be boring, never too hard to be frustrating.
 
 ---
 
-## 🧠 Approach & Logic
-
-### 1. The Metric Feedback Loop
-The game tracks three critical performance dimensions:
-- **Decision Speed**: Time taken from piece spawn to placement.
-- **Finesse/Panic**: Rapid, jittery movements detected as "Panic Moves" (under 300ms per placement).
-- **Structural Strategy**: Unevenness of the stack and maximum stack height.
-
-### 2. AI Cognitive Profiling
-Every 15 seconds, the accumulated metrics are sent to **Google Gemini 2.0 Flash**. The AI performs a non-blocking analysis to determine:
-- **Current State**: Is the player bored, focused, or overwhelmed?
-- **Mechanical Adjustment**: Should gravity increase (Pressure Spike), decrease (Adrenaline Recovery), or stay stable?
-- **Commentary**: Provides lore-driven, atmospheric feedback on the player's performance.
-
-### 3. Decoupled Rendering Architecture
-To ensure zero-latency gameplay at 60FPS:
-- The **Active Piece** is decoupled from the **Static Grid** state.
-- Visual composition happens during the render pass, eliminating state-driven "Logic Loops" that traditionally cause freezes in React-based Tetris engines.
+## 🧠 Architectural Decisions
+- **Asynchronous AI Loop**: The AI analysis runs in a non-blocking background loop (every 30s) to ensure zero impact on 60FPS gameplay.
+- **Decoupled Rendering**: The Active Piece is separated from the Static Grid state. Visual composition happens during the render pass, eliminating state-driven "Logic Loops" that cause lag in traditional React engines.
+- **Stateless Core Logic**: Game logic is implemented as pure, stateless functions for maximum computational efficiency and testability.
+- **Defensive Parsing**: Robust frontend error handling prevents malformed AI responses from impacting game stability.
 
 ---
 
-## 🛡️ Security & Responsibility
-- **Rate Limiting**: Backend protected by `express-rate-limit` (30 requests/min).
-- **Payload Validation**: Strict schema validation ensures only legitimate metrics are processed by the AI.
-- **Environment Safety**: Sensitive Gemini API keys are never exposed; they are handled via server-side environment variables in Cloud Run.
+## 🔐 Security Architecture
+- **Header Hardening**: Implemented `helmet` middleware to set secure HTTP headers and disable `x-powered-by`.
+- **Rate Limiting**: Backend protected by `express-rate-limit` (30 requests/min per IP) to prevent API abuse.
+- **Strict Validation**: All incoming telemetry metrics undergo strict schema validation before AI processing.
+- **Secret Management**: Fail-fast enforcement for missing API keys; sensitive credentials never exported to the client or committed to Git.
+
+---
+
+## ⚡ Performance & Efficiency
+- **Middleware Optimization**: Gzip/Brotli compression enabled via `compression()` middleware.
+- **Non-Blocking Telemetry**: Firestore writes are handled asynchronously; gameplay never waits for logging confirmation.
+- **Adaptive Polling**: Intelligent 30s interval balances real-time feedback with API quota conservation.
+- **Low-Latency Composition**: Zero-lag visual composition of the active tetromino on the game board.
 
 ---
 
 ## 🧪 Testing & Quality
-- **Unit Testing**: 100% logic coverage using Jest (ESM mode).
-- **Automation**: Test suites cover collision detection, row clearing, and AI mapping logic.
-- **Verification**: `tests/frontend/gameLogic.test.mjs` verifies core engine integrity.
-
----
-
-## ♿ Accessibility
-- **ARIA Implementation**: The board uses `role="grid"` and cells use `role="gridcell"` with dynamic `aria-label` tags for screen-reader compatibility.
-- **High Contrast**: Neon-on-dark color palette optimized for visibility and reduced eye strain.
+- **Automated CI**: GitHub Actions pipeline runs on every push to ensure code integrity.
+- **Logic Coverage**: 100% statement coverage for the core Tetris engine using Jest (ESM mode).
+- **Test Suites**: 25+ automated tests covering collision detection, row clearing, and AI mapping logic.
+- **Static Analysis**: Clean linting state across both frontend and backend modules.
 
 ---
 
 ## ☁️ Google Services Used
-- **Gemini API**: Core engine for cognitive profiling and adaptive difficulty.
-- **Firestore**: Anonymous gameplay analytics and performance logging.
-- **Google Cloud Run**: Serverless orchestration for scalable deployment.
-- **Google Cloud Build**: Integrated CI/CD pipeline for automated delivery.
+- **Google Gemini API**: Powers the core adaptive difficulty engine and personality-driven commentary.
+- **Google Cloud Firestore**: Strategic telemetry logging for anonymous performance analytics.
+- **Google Cloud Run**: Containerized serverless orchestration for scalable delivery.
+- **Google Cloud Build**: Integrated CI/CD pipeline for automated multi-service deployment.
 
 ---
 
 ## ⚙️ How to Run Locally
 
-### Prerequisites
-- Node.js 20+
-- Google Gemini API Key
+### 1. Prerequisites
+- Node.js (v18+)
+- Gemini API Key ([Get one here](https://aistudio.google.com/app/apikey))
 
-### Backend
+### 2. Backend Setup
 ```bash
 cd server
 npm install
-# Create .env with GEMINI_API_KEY
-node index.js
+# Add GEMINI_API_KEY to .env
+npm start
 ```
 
-### Frontend
+### 3. Frontend Setup
 ```bash
 cd client
 npm install
+# Update VITE_API_URL in .env if needed
 npm run dev
 ```
 
-### Run Tests
+### 4. Running Tests
 ```bash
 npm test
 ```
 
 ---
 
-## 📝 Assumptions
-1. **API Availability**: Assumes stable connection to Google Generative AI services.
-2. **Browser Specs**: Optimized for modern evergreen browsers with hardware acceleration for CSS Grid rendering.
+## ♿ Accessibility
+- **ARIA Implementation**: Full semantic grid structure with `role="grid"` and `role="gridcell"`.
+- **Screen Reader Support**: Dynamic `aria-label` tags describe board state and piece types.
+- **High Contrast**: Optimized neon-on-dark palette for maximum visual clarity.
