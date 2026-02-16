@@ -16,9 +16,12 @@ if (!process.env.GEMINI_API_KEY) {
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+const fs = require('fs');
+const path = require('path');
+
 app.post('/api/analyze', async (req, res) => {
     try {
-        const metrics = req.body;
+        const { metrics, gameId } = req.body;
 
         if (!metrics || typeof metrics !== 'object') {
             return res.status(400).json({ error: "Invalid metrics payload" });
@@ -55,6 +58,22 @@ Return JSON with:
             !analysis.difficulty_adjustment ||
             !analysis.commentary) {
             return res.status(500).json({ error: "Incomplete AI response" });
+        }
+
+        // Log to file if gameId is present
+        if (gameId) {
+            const logDir = path.join(__dirname, 'logs');
+            const logFile = path.join(logDir, `game_${gameId}.jsonl`);
+
+            const logEntry = JSON.stringify({
+                timestamp: new Date().toISOString(),
+                metrics,
+                analysis
+            }) + '\n';
+
+            fs.appendFile(logFile, logEntry, (err) => {
+                if (err) console.error("Error writing to log file:", err);
+            });
         }
 
         res.json(analysis);

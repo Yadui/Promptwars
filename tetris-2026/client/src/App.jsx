@@ -5,10 +5,17 @@ import Display from './components/Display';
 import StartButton from './components/StartButton';
 import EndScreen from './components/EndScreen';
 import CommentaryCard from './components/CommentaryCard';
+import NextBlock from './components/NextBlock';
+import Timer from './components/Timer';
+import DebugPanel from './components/DebugPanel';
+
+import MechanicNotification from './components/MechanicNotification';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const App = () => {
-  // Destructure liveAnalysis from the hook
-  const { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis } = useTetris();
+  // Destructure liveAnalysis and nextTetromino from the hook
+  const { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage } = useTetris();
   const gameArea = useRef(null);
   const [analysis, setAnalysis] = useState(null); // Keep this for final game over analysis
 
@@ -32,7 +39,7 @@ const App = () => {
         isFinal: true
       };
 
-      fetch('http://localhost:3000/api/analyze', {
+      fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -65,6 +72,14 @@ const App = () => {
         color: 'white'
       }}
     >
+      <DebugPanel
+        metrics={metrics}
+        dropTime={dropTime}
+        liveAnalysis={liveAnalysis}
+        isPlaying={isPlaying}
+        level={level}
+      />
+
       {gameOver && <EndScreen score={score} rows={rowsCleared} level={level} metrics={metrics} analysis={analysis} />}
 
       <div style={{
@@ -86,8 +101,32 @@ const App = () => {
           alignItems: 'center',
           flex: '0 0 60%', // Take 60% of the space
           maxWidth: '600px', // Prevent it from getting TOO wide on huge screens, preserving aspect ratio of tetris
+          position: 'relative' // For overlay positioning
         }}>
           <Board grid={grid} />
+
+          {/* Mechanic Change Notification Overlay */}
+          <MechanicNotification message={mechanicMessage} />
+
+          {/* Start Game Overlay */}
+          {!isPlaying && !gameOver && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 10
+            }}>
+              <div style={{ width: '200px' }}>
+                <StartButton callback={() => { startGame(); handleFocus(); }} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar Container */}
@@ -100,19 +139,23 @@ const App = () => {
           paddingTop: '20px'
         }}>
           <div style={{ marginBottom: '20px' }}>
+            {/* Timer */}
+            <Timer startTime={metrics.startTime} gameOver={gameOver} />
+
+            {/* Next Block */}
+            {isPlaying && nextTetromino && <NextBlock tetromino={nextTetromino.shape} />}
+
             <Display label="Score" text={score} />
             <Display label="Rows" text={rowsCleared} />
             <Display label="Level" text={level} />
           </div>
-
-          <StartButton callback={() => { startGame(); handleFocus(); }} />
 
           <div style={{ marginTop: 'auto', marginBottom: '20px' }}>
             {/* Pass liveAnalysis to the card */}
             <CommentaryCard analysis={liveAnalysis} />
           </div>
 
-          <div style={{ marginTop: '20px', color: 'var(--text-secondary)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>
             <p>← → to move</p>
             <p>↑ to rotate</p>
             <p>↓ to drop</p>

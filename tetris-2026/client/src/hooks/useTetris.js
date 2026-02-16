@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
@@ -7,13 +9,15 @@ import { TETROMINOS, randomTetromino } from '../utils/tetrominos';
 
 export const useTetris = () => {
     const [grid, setGrid] = useState(createGrid());
+    const [nextTetromino, setNextTetromino] = useState(randomTetromino());
     const [player, setPlayer] = useState({
         pos: { x: 0, y: 0 },
         tetromino: TETROMINOS[0].shape,
         collided: false,
     });
     const [gameOver, setGameOver] = useState(false);
-    const [dropTime, setDropTime] = useState(800);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [dropTime, setDropTime] = useState(null);
     const [score, setScore] = useState(0);
     const [rowsCleared, setRowsCleared] = useState(0);
     const [level, setLevel] = useState(0);
@@ -21,7 +25,7 @@ export const useTetris = () => {
     // Metrics tracking
     const [metrics, setMetrics] = useState({
         linesCleared: 0,
-        startTime: Date.now(),
+        startTime: null,
         placements: [], // { timeTaken, isPanic, rotationCount }
         rotationCount: 0,
         maxStackHeight: 0,
@@ -29,6 +33,13 @@ export const useTetris = () => {
     });
 
     const [pieceSpawnTime, setPieceSpawnTime] = useState(Date.now());
+    const [gameId, setGameId] = useState(null);
+
+    const [liveAnalysis, setLiveAnalysis] = useState({
+        cognitive_profile: "System Read",
+        commentary: "Press Start to enable neural link...",
+        difficulty_adjustment: "ready"
+    });
 
     function createGrid() {
         return Array.from(Array(BOARD_HEIGHT), () =>
@@ -70,8 +81,15 @@ export const useTetris = () => {
 
     const startGame = () => {
         setGrid(createGrid());
-        setPlayer(resetPlayer());
+        const next = randomTetromino();
+        setNextTetromino(next);
+        setPlayer({
+            pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
+            tetromino: randomTetromino().shape,
+            collided: false,
+        });
         setGameOver(false);
+        setIsPlaying(true);
         setScore(0);
         setRowsCleared(0);
         setLevel(0);
@@ -85,13 +103,26 @@ export const useTetris = () => {
             unevenness: 0,
         });
         setPieceSpawnTime(Date.now());
+
+        // Generate a simple unique Game ID
+        const newGameId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        setGameId(newGameId);
+
+        setLiveAnalysis({
+            cognitive_profile: "Syncing...",
+            commentary: "Neural link established. Awaiting input patterns.",
+            difficulty_adjustment: "calibrating"
+        });
     };
 
     const resetPlayer = () => {
         setPieceSpawnTime(Date.now());
+        const newTetromino = nextTetromino || randomTetromino(); // Use next or random if undefined
+        setNextTetromino(randomTetromino()); // Generate new next piece
+
         return {
             pos: { x: BOARD_WIDTH / 2 - 2, y: 0 },
-            tetromino: randomTetromino().shape,
+            tetromino: newTetromino.shape,
             collided: false,
         };
     };
@@ -151,6 +182,7 @@ export const useTetris = () => {
             // Game Over
             if (player.pos.y < 1) {
                 setGameOver(true);
+                setIsPlaying(false);
                 setDropTime(null);
             }
             updatePlayerPos({ x: player.pos.x, y: player.pos.y, collided: true });
@@ -160,19 +192,30 @@ export const useTetris = () => {
     const keyUp = ({ keyCode }) => {
         if (!gameOver) {
             // Activate the interval again when user releases down arrow
-            if (keyCode === 40) {
-                setDropTime(1000 / (level + 1) + 200);
-            }
+            // if (keyCode === 40) {
+            //     setDropTime(1000 / (level + 1) + 200);
+            // }
         }
     };
 
     const dropPlayer = () => {
-        setDropTime(null);
+        // We don't stop the interval anymore, we just add extra drops
+        // setDropTime(null);
         drop();
     };
 
     const move = ({ keyCode }) => {
         if (!gameOver) {
+            // First move check
+            if (metrics.placements.length === 0 && metrics.rotationCount === 0 && score === 0 && liveAnalysis.difficulty_adjustment === 'calibrating') {
+                setLiveAnalysis(prev => ({
+                    ...prev,
+                    cognitive_profile: "Analyzing...",
+                    commentary: "First input detected. Profiling reaction time.",
+                    difficulty_adjustment: "active"
+                }));
+            }
+
             if (keyCode === 37) {
                 movePlayer(-1);
             } else if (keyCode === 39) {
@@ -228,7 +271,18 @@ export const useTetris = () => {
             const ack = newGrid.reduce((ack, row) => {
                 if (row.findIndex((cell) => cell[0] === 0) === -1) {
                     setRowsCleared((prev) => prev + 1);
-                    setMetrics(prev => ({ ...prev, linesCleared: prev.linesCleared + 1 }));
+                    setMetrics(prev => {
+                        const newLinesCleared = prev.linesCleared + 1;
+                        if (newLinesCleared === 1) {
+                            setLiveAnalysis(current => ({
+                                ...current,
+                                cognitive_profile: "Flow State Detection",
+                                commentary: "First clear achieved. Neuro-plasticity limiters disengaged.",
+                                difficulty_adjustment: "optimizing"
+                            }));
+                        }
+                        return { ...prev, linesCleared: newLinesCleared };
+                    });
                     sweptRows += 1;
                     ack.unshift(new Array(newGrid[0].length).fill([0, 'clear']));
                     return ack;
@@ -284,31 +338,44 @@ export const useTetris = () => {
         setGrid((prev) => updateGrid(prev));
     }, [player.collided, player.pos, player.tetromino, player.pos.x, player.pos.y]);
 
-    const [liveAnalysis, setLiveAnalysis] = useState({
-        cognitive_profile: "Calibrating...",
-        commentary: "Initializing neural link...",
-        difficulty_adjustment: "maintain"
-    });
+
+
+    const [mechanicMessage, setMechanicMessage] = useState(null);
+    const metricsRef = useRef(metrics);
+    useEffect(() => {
+        metricsRef.current = metrics;
+    }, [metrics]);
+
+    const gameIdRef = useRef(gameId);
+    useEffect(() => {
+        gameIdRef.current = gameId;
+    }, [gameId]);
 
     // Send metrics to backend
     useEffect(() => {
         const interval = setInterval(() => {
-            if (!gameOver && metrics.placements.length > 0) {
+            const currentMetrics = metricsRef.current;
+            const currentGameId = gameIdRef.current;
+
+            if (!gameOver && currentMetrics.placements.length > 0) {
                 // Calculate derived metrics
-                const avgPlacementTime = metrics.placements.reduce((acc, p) => acc + p.timeTaken, 0) / metrics.placements.length || 0;
-                const panicCount = metrics.placements.filter(p => p.isPanic).length;
+                const avgPlacementTime = currentMetrics.placements.reduce((acc, p) => acc + p.timeTaken, 0) / currentMetrics.placements.length || 0;
+                const panicCount = currentMetrics.placements.filter(p => p.isPanic).length;
 
                 const payload = {
-                    linesCleared: metrics.linesCleared,
-                    avgPlacementTime,
-                    rotationCount: metrics.rotationCount,
-                    maxStackHeight: metrics.maxStackHeight,
-                    panicPlacements: panicCount,
-                    boardUnevenness: metrics.unevenness
+                    gameId: currentGameId,
+                    metrics: {
+                        linesCleared: currentMetrics.linesCleared,
+                        avgPlacementTime,
+                        rotationCount: currentMetrics.rotationCount,
+                        maxStackHeight: currentMetrics.maxStackHeight,
+                        panicPlacements: panicCount,
+                        boardUnevenness: currentMetrics.unevenness
+                    }
                 };
 
                 console.log("Sending metrics:", payload);
-                fetch('http://localhost:3000/api/analyze', {
+                fetch(`${API_URL}/api/analyze`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -318,21 +385,28 @@ export const useTetris = () => {
                         console.log("Analysis:", data);
                         setLiveAnalysis(data); // Update live analysis
 
-                        // Implement adaptation logic here later
                         if (data.difficulty_adjustment === 'increase') {
-                            setDropTime(prev => Math.max(100, prev * 0.9));
+                            setDropTime(prev => Math.max(100, (prev || 800) * 0.9));
+                            setMechanicMessage("SPEED UP!");
                         } else if (data.difficulty_adjustment === 'decrease') {
-                            setDropTime(prev => Math.min(1000, prev * 1.1));
+                            setDropTime(prev => Math.min(1000, (prev || 800) * 1.1));
+                            setMechanicMessage("SLOWING DOWN...");
                         } else if (data.difficulty_adjustment === 'spike') {
-                            setDropTime(prev => Math.max(50, prev * 0.5));
-                            setTimeout(() => setDropTime(prev => prev * 2), 5000); // 5s spike
+                            setDropTime(prev => Math.max(50, (prev || 800) * 0.5));
+                            setMechanicMessage("ADRENALINE SPIKE!");
+                            setTimeout(() => setDropTime(prev => (prev || 400) * 2), 5000); // 5s spike
+                        }
+
+                        // Clear message after 3 seconds
+                        if (data.difficulty_adjustment !== 'maintain') {
+                            setTimeout(() => setMechanicMessage(null), 3000);
                         }
                     })
                     .catch(err => console.error("Error sending metrics", err));
             }
-        }, 20000); // 20s interval for faster feedback
+        }, 5000); // 5s interval for faster feedback
         return () => clearInterval(interval);
-    }, [metrics, gameOver]);
+    }, [gameOver]); // Only depends on gameOver status now
 
     // Game Loop
     useEffect(() => {
@@ -346,5 +420,5 @@ export const useTetris = () => {
         }
     }, [dropTime, gameOver, drop]); // eslint-disable-next-line
 
-    return { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis };
+    return { grid, startGame, gameOver, score, rowsCleared, level, move, keyUp, player, metrics, liveAnalysis, nextTetromino, dropTime, isPlaying, mechanicMessage };
 };
